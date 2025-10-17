@@ -1,0 +1,24 @@
+{
+  "name": "Sanctum Gateway Bot",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "latest"
+    }
+  },
+  "postCreateCommand": "npm install && curl -sSfL https://release.solana.com/v1.18.26/install | sh && export PATH=\"/home/vscode/.local/share/solana/install/active_release/bin:$PATH\"",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  "forwardPorts": [3000, 8080],
+  "remoteUser": "vscode"
+}

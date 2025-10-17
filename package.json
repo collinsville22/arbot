@@ -1,0 +1,35 @@
+{
+  "name": "sanctum-gateway-arbitrage-bot",
+  "version": "1.0.0",
+  "description": "MEV/Arbitrage bot showcasing Sanctum Gateway's multi-path transaction delivery",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "tsx src/test-gateway.ts",
+    "monitor": "tsx src/monitoring/dashboard.ts"
+  },
+  "keywords": [
+    "solana",
+    "sanctum",
+    "gateway",
+    "arbitrage",
+    "mev",
+    "jupiter"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@solana/web3.js": "^1.95.8",
+    "@solana/spl-token": "^0.4.9",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.7",
+    "axios": "^1.7.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

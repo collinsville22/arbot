@@ -87,7 +87,7 @@ Trade Size: ${config.trading.positionSizeSol} SOL
 
           // Execute best opportunity
           const best = opportunities[0];
-          console.log(`\nExecuting best opportunity: ${best.pair}`);
+          console.log(`\nExecuting best opportunity: ${best.routeName}`);
           console.log(`Expected profit: ${best.profitPercentage.toFixed(4)}%`);
 
           const success = await this.executor.executeOpportunity(best);

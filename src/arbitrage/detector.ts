@@ -1,14 +1,14 @@
-import { JupiterClient, ARBITRAGE_PAIRS, JupiterRoute } from './jupiter';
+import { JupiterClient, ARBITRAGE_ROUTES, JupiterRoute } from './jupiter';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 export interface ArbitrageOpportunity {
-  pair: string;
-  inputMint: string;
-  outputMint: string;
+  routeName: string;
+  startToken: string;
+  intermediateTokens: string[];
   inputAmount: number;
   expectedOutput: number;
   profitPercentage: number;
-  route: JupiterRoute;
+  routes: JupiterRoute[];
   timestamp: number;
 }
 
@@ -24,48 +24,52 @@ export class ArbitrageDetector {
   }
 
   /**
-   * Scan for arbitrage opportunities
-   * Based on LaneOlsons approach - checks all pairs for profitable routes
+   * Scan for triangular arbitrage opportunities
+   * Finds circular routes where you end up with more of the starting token
    */
   async scanOpportunities(): Promise<ArbitrageOpportunity[]> {
     const opportunities: ArbitrageOpportunity[] = [];
 
-    console.log(`\nScanning ${ARBITRAGE_PAIRS.length} pairs for arbitrage...`);
+    console.log(`\nScanning ${ARBITRAGE_ROUTES.length} triangular routes for arbitrage...`);
 
-    for (const pair of ARBITRAGE_PAIRS) {
+    for (const arbRoute of ARBITRAGE_ROUTES) {
       try {
-        const route = await this.jupiter.getRoute(
-          pair.input,
-          pair.output,
+        // Execute the triangular route simulation
+        const result = await this.jupiter.executeTriangularRoute(
+          arbRoute.startToken,
+          arbRoute.intermediateTokens,
           this.tradeSize,
           50 // 0.5% slippage
         );
 
-        if (!route) {
+        if (!result) {
           continue;
         }
 
-        const inputAmount = parseInt(route.inAmount);
-        const outputAmount = parseInt(route.outAmount);
-        const profit = this.jupiter.calculateProfit(inputAmount, outputAmount);
+        // Calculate profit: did we end up with more of the starting token?
+        const profit = this.jupiter.calculateCircularProfit(
+          this.tradeSize,
+          result.finalAmount
+        );
 
         if (profit >= this.minProfitPercent) {
           opportunities.push({
-            pair: pair.name,
-            inputMint: pair.input,
-            outputMint: pair.output,
-            inputAmount,
-            expectedOutput: outputAmount,
+            routeName: arbRoute.name,
+            startToken: arbRoute.startToken,
+            intermediateTokens: arbRoute.intermediateTokens,
+            inputAmount: this.tradeSize,
+            expectedOutput: result.finalAmount,
             profitPercentage: profit,
-            route,
+            routes: result.routes,
             timestamp: Date.now(),
           });
 
-          console.log(`\nOPPORTUNITY FOUND!`);
-          console.log(`Pair: ${pair.name}`);
+          console.log(`\n✅ OPPORTUNITY FOUND!`);
+          console.log(`Route: ${arbRoute.name}`);
           console.log(`Profit: ${profit.toFixed(4)}%`);
-          console.log(`Input: ${(inputAmount / LAMPORTS_PER_SOL).toFixed(6)}`);
-          console.log(`Output: ${(outputAmount / LAMPORTS_PER_SOL).toFixed(6)}`);
+          console.log(`Input: ${(this.tradeSize / LAMPORTS_PER_SOL).toFixed(6)} (start token)`);
+          console.log(`Output: ${(result.finalAmount / LAMPORTS_PER_SOL).toFixed(6)} (start token)`);
+          console.log(`Net gain: ${((result.finalAmount - this.tradeSize) / LAMPORTS_PER_SOL).toFixed(6)}`);
         }
       } catch (error) {
         // Silent fail, continue scanning
@@ -73,7 +77,7 @@ export class ArbitrageDetector {
       }
 
       // Rate limit to avoid API throttling
-      await this.sleep(200);
+      await this.sleep(300);
     }
 
     return opportunities;

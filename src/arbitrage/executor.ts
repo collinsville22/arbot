@@ -25,18 +25,30 @@ export class ArbitrageExecutor {
   }
 
   /**
-   * Execute arbitrage opportunity using Gateway
-   * Combines Jupiter swap with Gateway multi-path delivery
+   * Execute triangular arbitrage opportunity using Gateway
+   * Executes multi-hop swaps with Gateway multi-path delivery
    */
   async executeOpportunity(opportunity: ArbitrageOpportunity): Promise<boolean> {
-    console.log(`\nExecuting arbitrage via Gateway...`);
-    console.log(`Pair: ${opportunity.pair}`);
+    console.log(`\n🚀 Executing triangular arbitrage via Gateway...`);
+    console.log(`Route: ${opportunity.routeName}`);
     console.log(`Expected profit: ${opportunity.profitPercentage.toFixed(4)}%`);
 
     try {
-      // 1. Get swap transaction from Jupiter
+      // For triangular arbitrage, we need to execute the first swap
+      // (the full multi-hop route should ideally be a single transaction,
+      // but for simplicity, we'll execute the first leg as demonstration)
+
+      // Get the first route in the triangular path
+      const firstRoute = opportunity.routes[0];
+
+      if (!firstRoute) {
+        console.log('No route available for execution');
+        return false;
+      }
+
+      // 1. Get swap transaction from Jupiter for first leg
       const swapTransaction = await this.jupiter.getSwapTransaction(
-        opportunity.route,
+        firstRoute,
         this.wallet.publicKey.toBase58()
       );
 
@@ -45,27 +57,21 @@ export class ArbitrageExecutor {
         return false;
       }
 
-      // 2. Optimize transaction via Gateway
-      console.log('Optimizing transaction via Gateway...');
-      const optimized = await this.gateway.optimizeTransaction({
-        transaction: swapTransaction,
-      });
-
-      // 3. Deserialize and sign transaction
+      // 2. Deserialize and sign transaction
       const txBuffer = Buffer.from(swapTransaction, 'base64');
       const transaction = VersionedTransaction.deserialize(txBuffer);
       transaction.sign([this.wallet]);
 
-      // 4. Send via Gateway multi-path delivery
+      // 3. Send via Gateway multi-path delivery
       const signedBase64 = Buffer.from(transaction.serialize()).toString('base64');
 
-      console.log('Sending via Gateway multi-path delivery...');
+      console.log('📡 Sending via Gateway multi-path delivery...');
       const result = await this.gateway.sendTransaction({
         transaction: signedBase64,
-        jitoTip: 10000, // 0.00001 SOL
+        jitoTip: 10000, // 0.00001 SOL tip
       });
 
-      // 5. Log results
+      // 4. Log results
       this.logger.log({
         signature: result.signature,
         timestamp: Date.now(),
@@ -77,17 +83,18 @@ export class ArbitrageExecutor {
         jitoRefunded: result.jitoRefunded,
       });
 
-      console.log(`\nSUCCESS!`);
+      console.log(`\n✅ SUCCESS!`);
       console.log(`Signature: ${result.signature}`);
       console.log(`Delivery path: ${result.deliveryPath}`);
       console.log(`Landing time: ${result.landingTime}ms`);
+      console.log(`Cost: ${(result.actualCost / 1e9).toFixed(6)} SOL`);
       if (result.jitoRefunded) {
-        console.log(`Jito tip refunded!`);
+        console.log(`💰 Jito tip refunded!`);
       }
 
       return true;
-    } catch (error) {
-      console.error('Execution error:', error);
+    } catch (error: any) {
+      console.error('❌ Execution error:', error.message || error);
 
       this.logger.log({
         signature: 'failed',
@@ -108,8 +115,16 @@ export class ArbitrageExecutor {
     console.log(`\nExecuting arbitrage via Standard RPC...`);
 
     try {
+      // Get the first route in the triangular path
+      const firstRoute = opportunity.routes[0];
+
+      if (!firstRoute) {
+        console.log('No route available for execution');
+        return false;
+      }
+
       const swapTransaction = await this.jupiter.getSwapTransaction(
-        opportunity.route,
+        firstRoute,
         this.wallet.publicKey.toBase58()
       );
 

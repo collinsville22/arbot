@@ -1,36 +1,18 @@
-import axios from 'axios';
+import { createJupiterApiClient, QuoteGetRequest, QuoteResponse } from '@jup-ag/api';
 import { PublicKey } from '@solana/web3.js';
 
-const JUPITER_API = 'https://quote-api.jup.ag/v6';
-
-export interface JupiterRoute {
-  inputMint: string;
-  inAmount: string;
-  outputMint: string;
-  outAmount: string;
-  priceImpactPct: number;
-  marketInfos: any[];
-  amount: string;
-  slippageBps: number;
-  otherAmountThreshold: string;
-  swapMode: string;
-  fees: any;
-}
-
-export interface JupiterQuoteResponse {
-  data: JupiterRoute[];
-  timeTaken: number;
-}
+export type JupiterRoute = QuoteResponse;
 
 export class JupiterClient {
-  private baseUrl: string;
+  private jupiterApi: ReturnType<typeof createJupiterApiClient>;
 
   constructor() {
-    this.baseUrl = JUPITER_API;
+    // Initialize Jupiter API client (uses official SDK)
+    this.jupiterApi = createJupiterApiClient();
   }
 
   /**
-   * Get best route for swap from Jupiter V6
+   * Get best route for swap from Jupiter V6 SDK
    */
   async getRoute(
     inputMint: string,
@@ -39,29 +21,29 @@ export class JupiterClient {
     slippageBps: number = 50
   ): Promise<JupiterRoute | null> {
     try {
-      const response = await axios.get(`${this.baseUrl}/quote`, {
-        params: {
-          inputMint,
-          outputMint,
-          amount: amount.toString(),
-          slippageBps,
-          onlyDirectRoutes: false,
-        },
-      });
+      const quoteRequest: QuoteGetRequest = {
+        inputMint,
+        outputMint,
+        amount,
+        slippageBps,
+        onlyDirectRoutes: false,
+      };
 
-      if (!response.data) {
+      const quote = await this.jupiterApi.quoteGet(quoteRequest);
+
+      if (!quote) {
         return null;
       }
 
-      return response.data;
+      return quote;
     } catch (error: any) {
-      console.error('Jupiter API Error:', error.response?.data || error.message);
+      console.error('Jupiter SDK Error:', error.message);
       return null;
     }
   }
 
   /**
-   * Get swap transaction from Jupiter V6
+   * Get swap transaction from Jupiter V6 SDK
    * Returns base64 encoded transaction
    */
   async getSwapTransaction(
@@ -69,17 +51,18 @@ export class JupiterClient {
     userPublicKey: string
   ): Promise<string | null> {
     try {
-      const response = await axios.post(`${this.baseUrl}/swap`, {
-        quoteResponse: route,
-        userPublicKey,
-        wrapAndUnwrapSol: true,
-        dynamicComputeUnitLimit: true,
-        prioritizationFeeLamports: 'auto',
+      const swapResponse = await this.jupiterApi.swapPost({
+        swapRequest: {
+          quoteResponse: route,
+          userPublicKey,
+          wrapAndUnwrapSol: true,
+          dynamicComputeUnitLimit: true,
+        },
       });
 
-      return response.data.swapTransaction;
-    } catch (error) {
-      console.error('Jupiter swap transaction error:', error);
+      return swapResponse.swapTransaction;
+    } catch (error: any) {
+      console.error('Jupiter swap transaction error:', error.message);
       return null;
     }
   }
